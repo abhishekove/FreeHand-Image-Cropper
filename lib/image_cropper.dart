@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/customClipper.dart';
 import 'package:image_cropper/customPainter.dart';
@@ -21,8 +23,6 @@ class _MyHomePageState extends State<MyHomePage> {
   List<Offset> pointsList = [];
   bool cropImage = false;
   ScreenshotController screenshotController = ScreenshotController();
-  bool edit = false;
-  int touched = -1;
   late ui.Image image;
   bool isImageLoaded = false;
   int rotation = 0;
@@ -59,7 +59,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Widget _buildImage() {
     if (isImageLoaded) {
-      // if (pointsList.length == 0) _openCamera();
       return Center(
         child: RotatedBox(
           quarterTurns: rotation,
@@ -83,9 +82,6 @@ class _MyHomePageState extends State<MyHomePage> {
                           height: MediaQuery.of(context).size.width.toInt(),
                           crop: cropImage),
                       child: GestureDetector(
-                        onPanStart: (details) {
-                          touched = closestOffset(details.localPosition);
-                        },
                         onPanUpdate: (details) {
                           Paint paint = Paint();
                           paint.color = Colors.red;
@@ -98,13 +94,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                 click.dx < image.width &&
                                 click.dy > 0 &&
                                 click.dy < image.height) {
-                              // pointsList.removeAt(touched);
                               pointsList.add(click);
                             }
                           });
-                        },
-                        onPanEnd: (details) {
-                          touched = -1;
                         },
                       ),
                     ),
@@ -117,31 +109,28 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  int closestOffset(Offset click) {
-    for (int i = 0; i < pointsList.length; i++) {
-      if ((pointsList[i] - click).distance <
-          (20.0 * (image.width.toDouble() / MediaQuery.of(context).size.width)))
-        return i;
-    }
-    return -1;
+  List<Widget> _iconDecider() {
+    if (isImageLoaded && !cropImage)
+      return [
+        IconButton(
+            icon: Icon(Icons.edit),
+            onPressed: () async {
+              setState(() {
+                cropImage = true;
+              });
+              screenshotController.capture().then((Uint8List? imageList) async {
+                if (imageList != null) {
+                  String path = await FileSaver.instance
+                      .saveAs('result image', imageList, 'png', MimeType.PNG);
+                  log(path);
+                }
+              });
+            })
+      ];
+    return [];
   }
 
-  Widget _iconDecider() {
-    if (!edit) {
-      setState(() {
-        edit = true;
-      });
-    }
-    return IconButton(
-        icon: Icon(Icons.edit),
-        onPressed: () async {
-          setState(() {
-            cropImage = true;
-          });
-        });
-  }
-
-  Widget zoomRotate() {
+  Widget rotate() {
     return BottomAppBar(
       child: new Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -181,10 +170,10 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text("Doc Scanner"),
-        actions: [_iconDecider()],
+        actions: _iconDecider(),
       ),
       body: _buildImage(),
-      bottomNavigationBar: zoomRotate(),
+      bottomNavigationBar: rotate(),
     );
   }
 }
